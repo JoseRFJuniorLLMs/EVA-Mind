@@ -420,8 +420,17 @@ AUTONOMOUS AGENT
 	EVA can autonomously create new skills to extend her own
 	capabilities without requiring a rebuild or restart.
 
-	All autonomous agent tools are gated behind debug mode
-	(ENVIRONMENT=development) for safety during testing.
+	Tools are split into two tiers:
+
+	Production tools (always active):
+		Web search, email, calendar, drive, maps, YouTube,
+		Spotify, WhatsApp, Telegram, scheduled tasks, MCP
+		memory tools, ask_llm, and Google Search grounding.
+
+	Debug-only tools (ENVIRONMENT=development):
+		Filesystem access, self-coding, database queries,
+		code execution, browser automation, smart home,
+		webhooks, and runtime skills.
 
 
 CLINICAL TOOLS
@@ -489,9 +498,11 @@ SWARM SYSTEM
 	- Orchestrator routes tool calls to specialized agents
 	- Registry maps tool names to responsible agents
 	- Circuit breaker protects against cascading failures
-	  (opens after 5 failures, resets after 30 seconds)
+	  (opens after 10 failures, recovers in 15 seconds)
+	- Handoff protocol: agents can transfer execution to
+	  another agent mid-call with context injection
 	- Priority-based timeouts:
-	  Critical: 2s, High: 5s, Medium: 10s, Low: 15s
+	  Critical: 2s, High: 5s, Medium: 15s, Low: 60s
 
 	12 agent types:
 	  clinical       - Medical decision support
@@ -503,9 +514,77 @@ SWARM SYSTEM
 	  kids           - Pediatric conversation mode
 	  legal          - Legal compliance (LGPD, data rights)
 	  productivity   - Task management
-	  scholar        - Academic research and autonomous learning
-	  selfawareness  - Introspection (code, databases, memory stats)
+	  scholar        - Autonomous learning via Google Search grounding,
+	                   web research, curriculum management, and semantic
+	                   knowledge search (6-hour background study cycle)
+	  selfawareness  - Introspection: analyzes own source code,
+	                   queries own databases, generates statistics
+	                   about memory, capabilities, and system state
 	  wellness       - Wellness monitoring
+
+
+SELF-KNOWLEDGE (AUTOCONHECIMENTO)
+----------------------------------
+
+	EVA knows what she can do. At every startup, 33 capabilities
+	are seeded as CoreMemory nodes in Neo4j via MERGE (idempotent).
+	These are injected into the system prompt under the section
+	"O QUE EU SEI FAZER" so EVA can naturally describe her own
+	capabilities when asked.
+
+	Each capability is linked to the EvaSelf node via
+	[:REMEMBERS {importance: 1.0}] relationships.
+
+	Source: internal/cortex/self/core_memory_engine.go
+
+	Capabilities include:
+	  - Communication (email, WhatsApp, Telegram, Slack, Discord, Teams, Signal)
+	  - Media (YouTube, Spotify, embedded webpages)
+	  - Productivity (Google Calendar, Drive, alarms, scheduled tasks)
+	  - Code execution (bash, Python, Node.js in sandbox)
+	  - Web search and real-time information access
+	  - Self-programming (read, edit, test own source code)
+	  - Database access (PostgreSQL, Neo4j, Qdrant, NietzscheDB)
+	  - Smart home (Home Assistant IoT control)
+	  - Multi-LLM (Claude, GPT-4o, DeepSeek as consultants)
+	  - MCP bridge (bidirectional Claude Code integration)
+	  - Native voice (Gemini Live API, emotion detection, prosody)
+	  - Video calls (WebRTC with ICE signaling)
+	  - Lacanian psychoanalytic motor
+	  - 12 specialized swarm agents
+	  - Clinical scales (PHQ-9, GAD-7, C-SSRS)
+	  - 10-layer memory system
+	  - Google Suite integration (Calendar, Gmail, Drive, Sheets, Docs, Maps, YouTube, Fit, Uber)
+	  - Browser automation
+	  - Krylov subspace compression
+	  - Memory orchestrator and scheduler (REM at 3am, Krylov every 6h)
+	  - Clinical research engine
+	  - Scholar agent (autonomous learning)
+	  - Self-awareness agent (introspection)
+	  - Real-time web search via Google Search grounding
+
+
+REAL-TIME WEB SEARCH
+--------------------
+
+	EVA accesses real-time information via Google Search grounding
+	through the Gemini API. This enables:
+
+	- Current news, events, and facts
+	- Real-time prices, weather, sports scores
+	- Up-to-date medical research and guidelines
+	- Any information not in EVA's training data
+
+	Implementation:
+	  - Tool: google_search_retrieval (production-enabled)
+	  - Backend: Gemini REST API with google_search tool
+	  - Scholar agent: study_topic for deep research on demand
+	  - Autonomous learner: 6-hour background study cycle
+	  - Timeout: 60 seconds (PriorityLow) for web operations
+	  - Feature flag: ENABLE_GOOGLE_SEARCH=true
+
+	Source: internal/cortex/learning/autonomous_learner.go
+	        internal/swarm/scholar/agent.go
 
 
 CONSCIOUSNESS MODEL
@@ -815,6 +894,8 @@ DEPLOYMENTS
 		Backend: EVA-Mind on port 8091
 		Detection: Go backend on port 8080
 		WebSocket proxy: Nginx /ws/browser -> 8091
+		Infrastructure: Docker (Neo4j, Qdrant, Redis)
+		Service: systemd eva-mind.service
 
 	EVA Elderly Care:
 		Twilio voice calls -> EVA-Mind WebSocket
@@ -822,6 +903,15 @@ DEPLOYMENTS
 		Push notifications via Firebase
 		Video calls with cascade escalation
 		  (Family -> Caregiver -> Doctor -> Emergency)
+
+	CI/CD:
+		GitHub Actions (.github/workflows/ci-cd.yml)
+		- Triggered on push to main
+		- Build & test on ubuntu-latest (Go 1.24)
+		- Deploy via gcloud compute ssh to malaria-vm
+		- Runs scripts/redeploy.sh on VM:
+		  git pull -> go build -> systemctl restart -> health check
+		- Requires GCP_SA_KEY secret for authentication
 
 
 MONITORING
@@ -841,8 +931,30 @@ MONITORING
 		eva_krylov_dimension          - Current subspace dimension
 		eva_krylov_compression_ratio  - Compression ratio
 
-	And additional metrics for consolidation, FDPN activation,
-	personality evolution, and attention system performance.
+	Consolidation:
+		eva_consolidation_runs_total   - Total REM consolidation runs
+		eva_consolidation_duration_sec - Consolidation cycle duration
+
+	FDPN:
+		eva_fdpn_activation_total      - FDPN spreading activation events
+		eva_fdpn_activation_latency    - Spreading activation latency
+
+	Personality:
+		eva_personality_evolution_total - Personality trait updates
+		eva_personality_openness       - Current Big Five openness
+		eva_personality_conscientiousness - Current conscientiousness
+
+	Attention:
+		eva_attention_broadcast_total  - GWT broadcast events
+		eva_attention_spotlight_duration - Spotlight duration
+
+	Swarm:
+		eva_swarm_calls_total          - Total swarm tool calls
+		eva_swarm_success_total        - Successful calls
+		eva_swarm_failed_total         - Failed calls
+		eva_swarm_circuit_open         - Circuit breaker state per agent
+
+	38+ total Prometheus metrics.
 
 
 SCIENTIFIC FOUNDATIONS
