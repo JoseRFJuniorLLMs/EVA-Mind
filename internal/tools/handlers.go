@@ -224,28 +224,48 @@ func (h *ToolsHandler) SetSwarmRouter(router SwarmRouter) {
 	h.swarmRouter = router
 }
 
-// debugOnlyTools — tools novas que só funcionam em modo debug
+// productionTools — ferramentas liberadas em producao (acesso a informacao em tempo real)
+// Estas tools NAO sao bloqueadas pelo gate debugOnly, mesmo em ENVIRONMENT=production.
+var productionTools = map[string]bool{
+	// Acesso a informacao em tempo real (pesquisa web, navegacao, google search)
+	"web_search": true, "browse_webpage": true, "show_webpage": true,
+	"google_search_retrieval": true,
+	// Google Services essenciais (Calendar, Drive, Maps — necessarios para idosos)
+	"send_email": true, "manage_calendar_event": true, "save_to_drive": true,
+	"find_nearby_places": true, "search_videos": true, "play_music": true, "play_video": true,
+	// Messaging (escalacao de emergencia depende destes)
+	"send_whatsapp": true, "send_telegram": true,
+	// Multi-LLM (segunda opiniao medica)
+	"ask_llm": true,
+	// Tarefas agendadas (lembretes de medicacao)
+	"create_scheduled_task": true, "list_scheduled_tasks": true, "cancel_scheduled_task": true,
+	// MCP Bridge — memoria e identidade (leitura segura)
+	"mcp_remember": true, "mcp_recall": true, "mcp_get_identity": true, "mcp_learn_topic": true,
+}
+
+// debugOnlyTools — tools que so funcionam em modo debug (acoes destrutivas/perigosas)
 var debugOnlyTools = map[string]bool{
-	// Fase 1 — Google Services + Messaging + Filesystem + SelfCode + DB
-	"send_email": true, "search_videos": true, "play_music": true,
-	"send_whatsapp": true, "manage_calendar_event": true, "save_to_drive": true,
-	"find_nearby_places": true, "send_telegram": true,
+	// Filesystem (leitura/escrita arbitraria)
 	"read_file": true, "write_file": true, "list_files": true, "search_files": true,
-	"web_search": true, "browse_webpage": true, "play_video": true, "show_webpage": true,
+	// Self-Coding (EVA edita seu proprio codigo)
 	"edit_my_code": true, "create_branch": true, "commit_code": true,
 	"run_tests": true, "get_code_diff": true,
+	// Database queries diretas (risco de dados sensiveis)
 	"query_postgresql": true, "query_neo4j": true, "query_qdrant": true, "query_nietzsche": true,
-	// Fase 2 — Sandbox + Browser + Cron + Multi-LLM + Messaging+ + Smart Home + Webhooks + Skills
-	"execute_code": true, "browser_navigate": true, "browser_fill_form": true, "browser_extract": true,
-	"create_scheduled_task": true, "list_scheduled_tasks": true, "cancel_scheduled_task": true,
-	"ask_llm": true,
+	// Code Execution Sandbox
+	"execute_code": true,
+	// Browser Automation (form filling, extraction — risco de abuso)
+	"browser_navigate": true, "browser_fill_form": true, "browser_extract": true,
+	// Messaging corporativo (Slack/Discord/Teams/Signal — evitar spam acidental)
 	"send_slack": true, "send_discord": true, "send_teams": true, "send_signal": true,
+	// Smart Home (controle fisico)
 	"smart_home_control": true, "smart_home_status": true,
+	// Webhooks (chamadas externas arbitrarias)
 	"create_webhook": true, "list_webhooks": true, "trigger_webhook": true,
+	// Skills dinamicas (execucao arbitraria)
 	"create_skill": true, "list_skills": true, "execute_skill": true, "delete_skill": true,
-	// Fase 3 — MCP Bridge tools
-	"mcp_remember": true, "mcp_recall": true, "mcp_teach_eva": true, "mcp_get_identity": true,
-	"mcp_learn_topic": true, "mcp_query_neo4j_core": true, "mcp_read_source": true, "mcp_edit_source": true,
+	// MCP Bridge — escrita/edicao de codigo (perigoso)
+	"mcp_teach_eva": true, "mcp_query_neo4j_core": true, "mcp_read_source": true, "mcp_edit_source": true,
 }
 
 // getGoogleAccessToken obtém um access token válido para Google APIs
@@ -288,8 +308,9 @@ func (h *ToolsHandler) getGoogleAccessToken(idosoID int64) (string, error) {
 func (h *ToolsHandler) ExecuteTool(name string, args map[string]interface{}, idosoID int64) (map[string]interface{}, error) {
 	log.Printf("🛠️ [TOOLS] Executando tool: %s para Idoso %d", name, idosoID)
 
-	// 🔒 Novas ferramentas só habilitadas em modo debug (Environment=development)
-	if debugOnlyTools[name] && !h.debugMode {
+	// 🔓 Production tools sao sempre permitidas (acesso a informacao em tempo real)
+	// 🔒 Debug-only tools so funcionam em ENVIRONMENT=development
+	if debugOnlyTools[name] && !productionTools[name] && !h.debugMode {
 		log.Printf("🔒 [TOOLS] Tool '%s' bloqueada — disponível apenas em modo debug", name)
 		return map[string]interface{}{
 			"status":  "bloqueado",
@@ -569,7 +590,41 @@ func (h *ToolsHandler) ExecuteTool(name string, args map[string]interface{}, ido
 
 	case "google_search_retrieval":
 		query, _ := args["query"].(string)
-		return map[string]interface{}{"result": fmt.Sprintf("Pesquisa para '%s': Os resultados indicam informações relevantes sobre o tema. Você pode explicar isso ao idoso.", query)}, nil
+		if query == "" {
+			return map[string]interface{}{"error": "Informe o que deseja pesquisar"}, nil
+		}
+
+		// Usar AutonomousLearner para busca REAL via Gemini + Google Search grounding
+		if h.autonomousLearner != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+
+			result, err := h.autonomousLearner(ctx, query)
+			if err != nil {
+				log.Printf("⚠️ [GOOGLE_SEARCH] Erro na busca real: %v", err)
+				return map[string]interface{}{
+					"status": "erro",
+					"query":  query,
+					"error":  fmt.Sprintf("Pesquisa falhou: %v", err),
+				}, nil
+			}
+
+			log.Printf("✅ [GOOGLE_SEARCH] Busca real concluida para: %s", query)
+			return map[string]interface{}{
+				"status":  "sucesso",
+				"query":   query,
+				"result":  result,
+				"source":  "gemini_google_search_grounding",
+				"message": fmt.Sprintf("Resultados reais da pesquisa sobre '%s'", query),
+			}, nil
+		}
+
+		log.Printf("⚠️ [GOOGLE_SEARCH] AutonomousLearner nao configurado — retornando fallback")
+		return map[string]interface{}{
+			"status":  "indisponivel",
+			"query":   query,
+			"message": "Serviço de pesquisa web não está configurado neste momento",
+		}, nil
 
 	case "get_vitals":
 		// Extrair argumentos

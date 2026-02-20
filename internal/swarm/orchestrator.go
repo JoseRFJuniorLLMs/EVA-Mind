@@ -35,13 +35,13 @@ type Orchestrator struct {
 func NewOrchestrator(deps *Dependencies) *Orchestrator {
 	return &Orchestrator{
 		registry: NewRegistry(),
-		breaker:  NewCircuitBreaker(5, 30*time.Second),
+		breaker:  NewCircuitBreaker(10, 15*time.Second), // Mais tolerante: 10 falhas antes de abrir, recovery em 15s (web search pode ter falhas transientes)
 		deps:     deps,
 		timeouts: map[Priority]time.Duration{
 			PriorityCritical: 2 * time.Second,
 			PriorityHigh:     5 * time.Second,
-			PriorityMedium:   10 * time.Second,
-			PriorityLow:      15 * time.Second,
+			PriorityMedium:   15 * time.Second,
+			PriorityLow:      60 * time.Second, // Scholar (web search) precisa de mais tempo — Gemini+Google Search grounding leva ~10-30s
 		},
 	}
 }
