@@ -127,6 +127,11 @@ func (s *SignalingServer) handleBrowserVoice(w http.ResponseWriter, r *http.Requ
 	if clientCPF != "" && lacan.IsCreatorCPF(clientCPF) && s.db != nil {
 		log.Info().Str("session", sessionID).Msg("[BROWSER] === MODO CRIADOR ATIVADO ===")
 
+		// Setar idosoID do criador para que tools funcionem
+		if idoso, err := s.db.GetIdosoByCPF(clientCPF); err == nil {
+			idosoID = idoso.ID
+		}
+
 		creatorSvc := personality.NewCreatorProfileService(s.db.Conn)
 		profile, err := creatorSvc.LoadCreatorProfile(ctx)
 		if err != nil {
