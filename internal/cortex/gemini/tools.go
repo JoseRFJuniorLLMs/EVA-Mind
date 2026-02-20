@@ -824,6 +824,45 @@ func GetDefaultTools() []interface{} {
 				map[string]interface{}{"name": "delete_skill", "description": "Remover skill", "parameters": map[string]interface{}{"type": "object", "properties": map[string]interface{}{"skill_name": map[string]interface{}{"type": "string", "description": "Nome"}}, "required": []string{"skill_name"}}},
 			},
 		},
+		// ============================================================================
+		// 🖥️ UI CONTROL (controlar a interface do browser do usuario)
+		// ============================================================================
+		map[string]interface{}{
+			"function_declarations": []interface{}{
+				map[string]interface{}{
+					"name":        "control_ui",
+					"description": "Controlar a interface do aplicativo no browser do usuario. Pode navegar entre paginas, trocar modo de video/voz/camera, abrir URLs externas, mostrar notificacoes ou entrar em fullscreen.",
+					"parameters": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"action": map[string]interface{}{
+								"type":        "string",
+								"description": "Acao a executar na interface",
+								"enum":        []string{"navigate", "switch_mode", "open_url", "show_notification", "fullscreen", "scroll_to"},
+							},
+							"target": map[string]interface{}{
+								"type":        "string",
+								"description": "Para navigate: rota do app (/dashboard, /detection, /patients, /samples, /microscopy, /tuberculose, /esquistossomose, /doenca-sono, /anemia-falciforme, /epidemio/mapa, /galeria, /reports, /clinics, /settings, /profile, /eva). Para scroll_to: ID do elemento.",
+							},
+							"mode": map[string]interface{}{
+								"type":        "string",
+								"description": "Para switch_mode: voice, screen ou camera",
+								"enum":        []string{"voice", "screen", "camera"},
+							},
+							"url": map[string]interface{}{
+								"type":        "string",
+								"description": "Para open_url: URL externa a abrir em nova aba",
+							},
+							"message": map[string]interface{}{
+								"type":        "string",
+								"description": "Para show_notification: texto da notificacao",
+							},
+						},
+						"required": []string{"action"},
+					},
+				},
+			},
+		},
 	}
 }
 

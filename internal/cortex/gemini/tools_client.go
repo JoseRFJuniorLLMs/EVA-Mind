@@ -524,6 +524,23 @@ Resposta: {"tool": "list_curriculum", "args": {"status": "completed"}}
 - execute_skill: Executar skill (args: skill_name, args)
 - delete_skill: Remover skill (args: skill_name)
 
+🖥️ CONTROLE DA INTERFACE (UI do browser do usuario):
+- control_ui: Controlar a interface do app no browser. Acoes:
+  - navigate: Ir para pagina do app (target: /dashboard, /detection, /patients, /samples, /microscopy, /tuberculose, /epidemio/mapa, /galeria, /reports, /eva)
+  - switch_mode: Trocar modo de sessao (mode: voice, screen, camera)
+  - open_url: Abrir URL externa em nova aba (url: https://...)
+  - show_notification: Mostrar notificacao na tela (message: texto)
+  - fullscreen: Entrar/sair fullscreen
+
+Fala: "EVA, mostra o dashboard"
+Resposta: {"tool": "control_ui", "args": {"action": "navigate", "target": "/dashboard"}}
+
+Fala: "EVA, compartilha minha tela"
+Resposta: {"tool": "control_ui", "args": {"action": "switch_mode", "mode": "screen"}}
+
+Fala: "EVA, liga a camera"
+Resposta: {"tool": "control_ui", "args": {"action": "switch_mode", "mode": "camera"}}
+
 Fala: "EVA, manda um email pro João"
 Resposta: {"tool": "send_email", "args": {"to": "joao@gmail.com", "subject": "Mensagem da EVA", "body": "Olá João!"}}
 

@@ -319,6 +319,18 @@ func (s *SignalingServer) handleBrowserVoice(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
+	// --- Identidade pessoal da EVA (CoreMemoryEngine — Neo4j) ---
+	// GetIdentityContext() retorna: personalidade OCEAN, memorias importantes, autodescricao, capacidades
+	if s.coreMemory != nil {
+		identityCtx, err := s.coreMemory.GetIdentityContext(ctx)
+		if err != nil {
+			log.Warn().Err(err).Msg("[BROWSER] Falha ao carregar identidade pessoal (CoreMemory)")
+		} else if identityCtx != "" {
+			clientContext = identityCtx + "\n\n---\n\n" + clientContext
+			log.Info().Str("session", sessionID).Msg("[BROWSER] Identidade pessoal injetada (CoreMemory)")
+		}
+	}
+
 	// --- setupGemini: cria e configura um novo client Gemini ---
 	// Captura clientContext e memories do escopo externo — sao imutaveis apos esta linha.
 	setupGemini := func() (*gemini.Client, error) {
@@ -459,6 +471,33 @@ func (s *SignalingServer) handleBrowserVoice(w http.ResponseWriter, r *http.Requ
 									if err != nil {
 										log.Error().Err(err).Str("tool", tc.Name).Msg("[TOOLS] Erro ao executar tool")
 										continue
+									}
+
+									// Envia ao browser: ui_action para control_ui, tool_event para o resto
+									if isUI, _ := result["ui_action"].(bool); isUI {
+										uiPayload := map[string]interface{}{
+											"type":    "ui_action",
+											"action":  result["action"],
+											"target":  result["target"],
+											"mode":    result["mode"],
+											"url":     result["url"],
+											"message": result["message_ui"],
+										}
+										writeMu.Lock()
+										conn.WriteJSON(uiPayload)
+										writeMu.Unlock()
+										log.Info().Str("action", fmt.Sprint(result["action"])).Msg("[UI] ui_action enviado ao browser")
+									} else {
+										toolEventPayload := map[string]interface{}{
+											"type":      "tool_event",
+											"tool":      tc.Name,
+											"tool_data": result,
+											"status":    "success",
+										}
+										writeMu.Lock()
+										conn.WriteJSON(toolEventPayload)
+										writeMu.Unlock()
+										log.Info().Str("tool", tc.Name).Msg("[TOOLS] tool_event enviado ao browser")
 									}
 
 									// Envia resultado como texto para o Gemini processar

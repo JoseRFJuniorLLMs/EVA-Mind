@@ -1069,6 +1069,24 @@ func (h *ToolsHandler) ExecuteTool(name string, args map[string]interface{}, ido
 	// 🔌 MCP BRIDGE — Tools expostas via MCP Server (Claude Code)
 	// ============================================================================
 
+	// ============================================================================
+	// 🖥️ UI CONTROL (forward to browser WebSocket as ui_action)
+	// ============================================================================
+
+	case "control_ui":
+		action, _ := args["action"].(string)
+		result := map[string]interface{}{
+			"success":    true,
+			"message":    fmt.Sprintf("UI action '%s' enviada ao browser", action),
+			"ui_action":  true,
+			"action":     action,
+			"target":     args["target"],
+			"mode":       args["mode"],
+			"url":        args["url"],
+			"message_ui": args["message"],
+		}
+		return result, nil
+
 	case "mcp_remember":
 		return h.handleMCPRemember(idosoID, args)
 

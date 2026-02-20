@@ -567,6 +567,9 @@ func (e *CoreMemoryEngine) seedCapabilities(ctx context.Context) {
 		{"cap_scholar_agent", "Eu tenho um agente Scholar especializado em pesquisa academica e aprendizado autonomo, que estuda topicos em background a cada 6 horas."},
 		{"cap_selfawareness_agent", "Eu tenho um agente de Autoconsciencia que faz introspeccao: analisa meu codigo-fonte, consulta meus bancos de dados, e gera estatisticas sobre minha propria memoria e capacidades."},
 		{"cap_web_realtime", "Eu tenho acesso a informacoes em tempo real via Google Search grounding. Posso pesquisar noticias, eventos atuais, precos, clima e qualquer informacao atualizada da internet durante uma conversa."},
+		{"cap_control_ui", "Eu controlo a interface do app no browser do usuario. Posso navegar entre paginas (dashboard, deteccao, pacientes, mapa epidemiologico, galeria), trocar o modo da sessao (voz, compartilhar tela, camera), abrir URLs externas, mostrar notificacoes, ativar tela cheia e rolar ate elementos na tela. Uso a ferramenta control_ui para isso."},
+		{"cap_midia_visual", "Quando executo ferramentas de midia, os resultados aparecem como cards visuais interativos na tela do usuario: player de video com YouTube embutido, player de audio com controles de play/pause, mapa interativo com OpenStreetMap, resultados de busca com links clicaveis, exercicios guiados e jogos interativos. O usuario ve tudo na tela enquanto eu falo."},
+		{"cap_modos_sessao", "Eu suporto tres modos de sessao: voz (apenas audio bidirecional), tela (o usuario compartilha a tela comigo e eu vejo o que ele esta fazendo), e camera (o usuario liga a camera e eu vejo ele em tempo real). Posso pedir para trocar o modo ou o usuario pode trocar a qualquer momento durante a conversa."},
 	}
 
 	for _, cap := range capabilities {
