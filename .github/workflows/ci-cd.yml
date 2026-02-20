@@ -41,7 +41,7 @@ jobs:
           echo "Build OK: $(ls -lh eva-mind | awk '{print $5}')"
 
   # ============================================================================
-  # DEPLOY TO VM
+  # DEPLOY TO VM (via SSH direto — mesmo padrão do Malaria-Angolar)
   # ============================================================================
   deploy:
     name: Deploy to VM
@@ -50,34 +50,39 @@ jobs:
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Deploy via SSH
+      - name: Setup SSH key
         run: |
-          gcloud compute ssh ${{ env.VM_USER }}@malaria-vm \
-            --zone=africa-south1-a \
-            --project=malaria-487614 \
-            --command="bash /home/web2a/EVA-Mind/scripts/redeploy.sh" \
-            --ssh-flag="-o StrictHostKeyChecking=no"
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ env.VM_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy via SSH (git pull + build + restart)
+        run: |
+          ssh ${{ env.VM_USER }}@${{ env.VM_IP }} 'bash /home/web2a/EVA-Mind/scripts/redeploy.sh'
 
       - name: Health check
         run: |
           sleep 5
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://${{ env.VM_IP }}:8091/api/health || echo "000")
-          if [ "$HTTP_CODE" = "200" ]; then
-            echo "Health check OK (HTTP $HTTP_CODE)"
-          else
-            echo "WARNING: Health check returned HTTP $HTTP_CODE"
-          fi
+          for i in 1 2 3; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+              --connect-timeout 10 \
+              http://${{ env.VM_IP }}:8091/api/health || echo "000")
+            echo "Attempt $i: HTTP $HTTP_CODE"
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "EVA-Mind OK"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "ERROR: Health check failed (last: HTTP $HTTP_CODE)"
+          ssh ${{ env.VM_USER }}@${{ env.VM_IP }} 'sudo journalctl -u eva-mind --no-pager -n 30' || true
+          exit 1
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          ssh ${{ env.VM_USER }}@${{ env.VM_IP }} 'sudo journalctl -u eva-mind --no-pager -n 50' || true
 
       - name: Notify
         if: always()
