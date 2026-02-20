@@ -144,7 +144,7 @@ Valores como "MORTO", "FEIO", "ALEJADO", "IA" injetados diretamente no prompt do
 - MCP recall com busca vetorial (Qdrant + fallback ILIKE)
 
 ### Implementados (backlog):
-- Cliente gRPC do NietzscheDB
+- Cliente gRPC do NietzscheDB — Go SDK pronto: `sdk-papa-caolho` (Nietzsche-Database/sdks/go/, 22 RPCs). Falta: reescrever `internal/brainstem/infrastructure/nietzsche/client.go` para usar o SDK
 - Gerador de PDF real (gofpdf)
 - Endpoints FHIR R4
 - NER no detector de mentiras
