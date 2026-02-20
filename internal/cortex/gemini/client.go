@@ -148,40 +148,24 @@ func (c *Client) SendSetup(instructions string, voiceSettings map[string]interfa
 					return parts
 				}(),
 			},
-			// google_search REMOVIDO — modelo audio-preview NAO suporta tools via WebSocket.
-			// Google passou a rejeitar com setupError, matando a sessao imediatamente.
-			// Tools sao processadas via REST pelo ToolsClient (gemini-3-flash).
 		},
 	}
 
-	// NOTA: input_config com VAD foi removido porque o modelo
-	// gemini-2.5-flash-native-audio-preview nao aceita esse campo.
-	// Erro: "Unknown name input_config at 'setup': Cannot find field"
-
-	// ⚠️ CRITICAL ARCHITECTURE FIX:
-	// O modelo 'gemini-2.5-flash-native-audio-preview' NÃO suporta Tools via WebSocket.
-	// Ele é estritamente para Audio Streaming (Input/Output).
-	// Tools devem ser processadas por um client separado (REST/gRPC) usando outro modelo.
-	// Portanto, enviamos NIL para tools aqui, igual ao EVA-Mind original.
-
-	/*
-		// Tools Logic - DISABLED FOR AUDIO WEBSOCKET
-		var toolsPayload []interface{}
-		if len(toolsDef) > 0 {
-			toolsList := []interface{}{}
-			for _, t := range toolsDef {
-				toolsList = append(toolsList, t)
-			}
-			toolsPayload = append(toolsPayload, map[string]interface{}{
+	// Function calling ATIVO: gemini-2.5-flash-native-audio-preview-12-2025 suporta tools via WebSocket
+	// Ref: https://ai.google.dev/gemini-api/docs/live-tools
+	// ComplexFuncBench Audio: 71.5% (lider do mercado, dez/2025)
+	if len(toolsDef) > 0 {
+		toolsList := make([]interface{}, 0, len(toolsDef))
+		for _, t := range toolsDef {
+			toolsList = append(toolsList, t)
+		}
+		setup["setup"].(map[string]interface{})["tools"] = []interface{}{
+			map[string]interface{}{
 				"functionDeclarations": toolsList,
-			})
-			log.Printf("⚠️ [SETUP] Tools ignoradas para Audio WebSocket (Architectural Fix)")
+			},
 		}
-
-		if len(toolsPayload) > 0 {
-			setup["setup"].(map[string]interface{})["tools"] = toolsPayload
-		}
-	*/
+		log.Printf("🛠️ [SETUP] %d tools enviadas ao Gemini (function calling ativo)", len(toolsDef))
+	}
 
 	log.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	log.Printf("🔧 CONFIGURANDO GEMINI")
