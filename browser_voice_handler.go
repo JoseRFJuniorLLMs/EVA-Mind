@@ -519,15 +519,11 @@ func (s *SignalingServer) handleBrowserVoice(w http.ResponseWriter, r *http.Requ
 										log.Info().Str("tool", tc.Name).Msg("[TOOLS] tool_event enviado ao browser")
 									}
 
-									// Envia resultado como texto para o Gemini processar
-									toolMsg := fmt.Sprintf("[TOOL_RESULT:%s] %v", tc.Name, result["message"])
-									geminiMu.RLock()
-									c := geminiRef
-									geminiMu.RUnlock()
-									if c != nil {
-										c.SendText(toolMsg)
-									}
-									log.Info().Str("tool", tc.Name).Msg("[TOOLS] Resultado enviado ao Gemini")
+									// NOTA: NAO enviar SendText ao Gemini native-audio.
+								// O modelo gemini-2.5-flash-native-audio-preview nao suporta client_content
+								// (texto) durante sessao de audio — retorna close 1008 "policy violation".
+								// Os resultados ja foram enviados ao browser via tool_event/ui_action.
+								log.Info().Str("tool", tc.Name).Msg("[TOOLS] Tool executada (resultado via tool_event)")
 								}
 							}(text, idosoID)
 						}
