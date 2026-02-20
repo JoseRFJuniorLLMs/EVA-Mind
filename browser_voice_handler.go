@@ -368,6 +368,25 @@ func (s *SignalingServer) handleBrowserVoice(w http.ResponseWriter, r *http.Requ
 	var reconnecting atomic.Bool // true enquanto reconexao em progresso
 	var responseAccum strings.Builder
 
+	// --- Registrar browser notifier para tool_events async ---
+	// Quando tools async (goroutines) chamam NotifyFunc, o resultado tambem chega aqui.
+	if s.toolsHandler != nil && idosoID > 0 {
+		s.toolsHandler.BrowserNotifiers.Store(idosoID, func(msgType string, payload interface{}) {
+			toolEventPayload := map[string]interface{}{
+				"type":      "tool_event",
+				"tool":      msgType,
+				"tool_data": payload,
+				"status":    "success",
+			}
+			writeMu.Lock()
+			conn.WriteJSON(toolEventPayload)
+			writeMu.Unlock()
+			log.Info().Str("tool", msgType).Int64("idoso", idosoID).Msg("[TOOLS] tool_event async enviado ao browser")
+		})
+		defer s.toolsHandler.BrowserNotifiers.Delete(idosoID)
+		log.Info().Str("session", sessionID).Int64("idoso", idosoID).Msg("[BROWSER] Browser notifier registrado para tools async")
+	}
+
 	// sigChan recebe sinais das goroutines para o loop principal
 	// Buffer 4: captura sinais de goroutines mortas sem bloquear
 	sigChan := make(chan browserSignal, 4)

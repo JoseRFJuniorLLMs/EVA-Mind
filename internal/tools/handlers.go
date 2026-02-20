@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -79,6 +80,7 @@ type ToolsHandler struct {
 	debugMode         bool                            // ✅ Novas tools só habilitadas em debug
 	swarmRouter       SwarmRouter                     // ✅ Bridge para swarm orchestrator (tools sem case no switch)
 	NotifyFunc        func(idosoID int64, msgType string, payload interface{})
+	BrowserNotifiers  sync.Map // map[int64]func(msgType string, payload interface{}) — browser voice WS sessions
 }
 
 func NewToolsHandler(db *database.DB, pushService *push.FirebaseService, emailService *email.EmailService) *ToolsHandler {

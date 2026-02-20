@@ -263,6 +263,7 @@ func NewSignalingServer(
 
 	// ✅ FASE 10: Configurar Callback de Sinalização para Tools (WebRTC, etc)
 	server.tools.NotifyFunc = func(idosoID int64, msgType string, payload interface{}) {
+		// 1. Enviar para signaling WebSocket (app mobile / legacy)
 		server.sessions.Range(func(key, value interface{}) bool {
 			session := value.(*WebSocketSession)
 			if session.IdosoID == idosoID {
@@ -277,6 +278,10 @@ func NewSignalingServer(
 			}
 			return true
 		})
+		// 2. Enviar para browser voice WebSocket (tool_event async)
+		if fn, ok := server.tools.BrowserNotifiers.Load(idosoID); ok {
+			fn.(func(string, interface{}))(msgType, payload)
+		}
 	}
 
 	// ✅ NOVO: Inicializar Cortex (Tools Intelligence)
