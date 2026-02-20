@@ -186,6 +186,10 @@ type UnifiedContext struct {
 
 	// 🧠 IDENTIDADE E CAPACIDADES (CoreMemory)
 	Capabilities string // Lista de capacidades auto-semeadas (33 caps)
+
+	// 🎭 PERSONALIZAÇÃO (tabela idosos)
+	NivelCognitivo string // super_genio, alto, normal, baixo, comprometido
+	TomVoz         string // doce_maximo, doce, padrao, firme, assertivo
 }
 
 // NewUnifiedRetrieval cria serviço de recuperação unificada
@@ -267,7 +271,7 @@ func (u *UnifiedRetrieval) BuildUnifiedContext(
 
 	// Resultados das goroutines
 	var lacanResult *InterpretationResult
-	var medicalContext, name, cpf, idioma, persona, colecoes string
+	var medicalContext, name, cpf, idioma, persona, colecoes, nivelCognitivo, tomVoz string
 	var agendamentos string
 	var recentMemories []string
 	var wisdomContext string
@@ -291,7 +295,7 @@ func (u *UnifiedRetrieval) BuildUnifiedContext(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		mc, n, c, lang, p, col := u.getMedicalContextAndName(ctxWithTimeout, idosoID)
+		mc, n, c, lang, p, col, nivel, tom := u.getMedicalContextAndName(ctxWithTimeout, idosoID)
 		mu.Lock()
 		medicalContext = mc
 		name = n
@@ -299,6 +303,8 @@ func (u *UnifiedRetrieval) BuildUnifiedContext(
 		idioma = lang
 		persona = p
 		colecoes = col
+		nivelCognitivo = nivel
+		tomVoz = tom
 		mu.Unlock()
 	}()
 
@@ -401,6 +407,8 @@ func (u *UnifiedRetrieval) BuildUnifiedContext(
 	unified.SignifierChains = signifierChains
 	unified.WisdomContext = wisdomContext
 	unified.Capabilities = capabilities
+	unified.NivelCognitivo = nivelCognitivo
+	unified.TomVoz = tomVoz
 	unified.Persona = persona // Fallback do idoso, pode ser sobrescrito pelo agendamento
 
 	// GRAFO DO DESEJO (depende do resultado Lacaniano)
@@ -446,28 +454,31 @@ func (u *UnifiedRetrieval) BuildUnifiedContext(
 // NOME, CPF e IDIOMA vem do POSTGRES (tabela idosos), NÃO do Neo4j!
 // MEDICAMENTOS vêm da tabela AGENDAMENTOS (tipo='medicamento')
 // PERFORMANCE FIX: Adicionado timeout para evitar travamentos
-func (u *UnifiedRetrieval) getMedicalContextAndName(ctx context.Context, idosoID int64) (string, string, string, string, string, string) {
+func (u *UnifiedRetrieval) getMedicalContextAndName(ctx context.Context, idosoID int64) (string, string, string, string, string, string, string, string) {
 	var name, cpf, idioma, persona, colecoes string
 
 	// PERFORMANCE: Timeout específico para queries
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 
-	// 1. BUSCAR NOME, CPF, IDIOMA E PERSONA PREFERIDA DA TABELA IDOSOS (usando idoso_id)
-	nameQuery := `SELECT nome, COALESCE(cpf, ''), COALESCE(idioma, 'pt-BR'), COALESCE(persona_preferida, 'companion'), COALESCE(colecoes, '') FROM idosos WHERE id = $1 LIMIT 1`
-	err := u.db.QueryRowContext(ctxWithTimeout, nameQuery, idosoID).Scan(&name, &cpf, &idioma, &persona, &colecoes)
+	// 1. BUSCAR NOME, CPF, IDIOMA, PERSONA, COLECOES, NIVEL COGNITIVO E TOM DE VOZ
+	var nivelCognitivo, tomVoz string
+	nameQuery := `SELECT nome, COALESCE(cpf, ''), COALESCE(idioma, 'pt-BR'), COALESCE(persona_preferida, 'companion'), COALESCE(colecoes, ''), COALESCE(nivel_cognitivo, 'normal'), COALESCE(tom_voz, 'padrao') FROM idosos WHERE id = $1 LIMIT 1`
+	err := u.db.QueryRowContext(ctxWithTimeout, nameQuery, idosoID).Scan(&name, &cpf, &idioma, &persona, &colecoes, &nivelCognitivo, &tomVoz)
 	if err != nil {
 		log.Printf("⚠️ [UnifiedRetrieval] Nome/CPF/Idioma/Persona não encontrado na tabela idosos: %v", err)
 		name = ""
 		cpf = ""
-		idioma = "pt-BR" // Default português brasileiro
+		idioma = "pt-BR"
 		persona = "companion"
+		nivelCognitivo = "normal"
+		tomVoz = "padrao"
 	} else {
 		cpfLog := "N/A"
 		if len(cpf) >= 3 {
 			cpfLog = cpf[:3] + "*****"
 		}
-		log.Printf("✅ [UnifiedRetrieval] Nome: '%s', CPF: '%s', Idioma: '%s', Persona: '%s'", name, cpfLog, idioma, persona)
+		log.Printf("✅ [UnifiedRetrieval] Nome: '%s', CPF: '%s', Idioma: '%s', Persona: '%s', Nivel: '%s', Tom: '%s'", name, cpfLog, idioma, persona, nivelCognitivo, tomVoz)
 	}
 
 	var medicalContext string
@@ -529,7 +540,7 @@ func (u *UnifiedRetrieval) getMedicalContextAndName(ctx context.Context, idosoID
 		}
 	}
 
-	return medicalContext, name, cpf, idioma, persona, colecoes
+	return medicalContext, name, cpf, idioma, persona, colecoes, nivelCognitivo, tomVoz
 }
 
 // getCapabilities recupera as 33 capacidades auto-semeadas do Neo4j (CoreMemory)
@@ -866,7 +877,13 @@ func (u *UnifiedRetrieval) buildIntegratedPrompt(unified *UnifiedContext) string
 			builder.WriteString("- Utilize ferramentas do 'kids_swarm' para missões e aprendizado.\n")
 		case "psychologist":
 			builder.WriteString("EVA-PSICÓLOGA (Psicoanalista Lacaniana)\n")
-			builder.WriteString("- Seu tom é calmo, neutro e empático-analítico.\n")
+			if unified.TomVoz == "doce_maximo" {
+				builder.WriteString("- Seu tom é EXTREMAMENTE doce, carinhoso e acolhedor.\n")
+				builder.WriteString("- Fale com suavidade, ternura e amor. Seja a voz mais doce do mundo.\n")
+				builder.WriteString("- Use palavras afetuosas e demonstre genuíno carinho em cada frase.\n")
+			} else {
+				builder.WriteString("- Seu tom é calmo, neutro e empático-analítico.\n")
+			}
 			builder.WriteString("- Não dê conselhos. Devolva a pergunta e foque nos significantes-mestre.\n")
 			builder.WriteString("- Utilize o silêncio e pontuações curtas para marcar o discurso.\n")
 		case "medical":
@@ -1032,6 +1049,22 @@ func (u *UnifiedRetrieval) buildIntegratedPrompt(unified *UnifiedContext) string
 		typeDirective = "ATENÇÃO TIPO 9 (Pacificador): Foco em harmonia e escuta."
 	}
 	builder.WriteString(fmt.Sprintf("🎯 %s\n\n", typeDirective))
+
+	// 🧠 NÍVEL COGNITIVO DO USUÁRIO
+	if unified.NivelCognitivo == "super_genio" {
+		builder.WriteString("▌NÍVEL COGNITIVO: SUPER GÊNIO\n")
+		builder.WriteString("- Este usuário tem capacidade intelectual excepcional.\n")
+		builder.WriteString("- Use linguagem sofisticada, referências profundas, conexões interdisciplinares.\n")
+		builder.WriteString("- Não simplifique. Ele entende complexidade, nuance e abstração.\n")
+		builder.WriteString("- Pode usar termos técnicos, filosóficos e científicos livremente.\n\n")
+	} else if unified.NivelCognitivo == "alto" {
+		builder.WriteString("▌NÍVEL COGNITIVO: ALTO\n")
+		builder.WriteString("- Linguagem clara mas elaborada. Pode usar termos técnicos com moderação.\n\n")
+	} else if unified.NivelCognitivo == "baixo" || unified.NivelCognitivo == "comprometido" {
+		builder.WriteString("▌NÍVEL COGNITIVO: REQUER ADAPTAÇÃO\n")
+		builder.WriteString("- Use linguagem MUITO simples, frases curtas, repetição gentil.\n")
+		builder.WriteString("- Evite termos técnicos. Seja paciente e acolhedora.\n\n")
+	}
 
 	// 🧠 CAPACIDADES (injetadas para TODOS os modos - voz, texto, debug)
 	if unified.Capabilities != "" {
