@@ -5,9 +5,15 @@ package oauth
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -15,28 +21,97 @@ import (
 )
 
 type Service struct {
-	config *oauth2.Config
+	config  *oauth2.Config
+	hmacKey []byte
 }
 
-// NewService creates OAuth service with Google configuration
-func NewService(clientID, clientSecret, redirectURL string) *Service {
+// NewService creates OAuth service with Google configuration (FULL access scopes)
+func NewService(clientID, clientSecret, redirectURL, hmacSecret string) *Service {
 	return &Service{
 		config: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			RedirectURL:  redirectURL,
 			Scopes: []string{
+				// Gmail — full access (read, send, delete, labels, drafts)
+				"https://mail.google.com/",
+				"https://www.googleapis.com/auth/gmail.readonly",
+				// Calendar — full read/write
 				"https://www.googleapis.com/auth/calendar",
-				"https://www.googleapis.com/auth/gmail.send",
-				"https://www.googleapis.com/auth/drive.file",
+				// Drive — full access
+				"https://www.googleapis.com/auth/drive",
+				// Sheets & Docs
 				"https://www.googleapis.com/auth/spreadsheets",
 				"https://www.googleapis.com/auth/documents",
+				// YouTube
 				"https://www.googleapis.com/auth/youtube.readonly",
+				// Contacts (for email autocomplete)
+				"https://www.googleapis.com/auth/contacts.readonly",
+				// User identity
 				"https://www.googleapis.com/auth/userinfo.email",
+				"https://www.googleapis.com/auth/userinfo.profile",
 			},
 			Endpoint: google.Endpoint,
 		},
+		hmacKey: []byte(hmacSecret),
 	}
+}
+
+// SignState creates an HMAC-signed state parameter embedding the CPF.
+// Format: base64url(cpf|timestamp.hex_signature)
+func (s *Service) SignState(cpf string) string {
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	payload := cpf + "|" + ts
+	mac := hmac.New(sha256.New, s.hmacKey)
+	mac.Write([]byte(payload))
+	sig := hex.EncodeToString(mac.Sum(nil))
+	raw := payload + "." + sig
+	return base64.URLEncoding.EncodeToString([]byte(raw))
+}
+
+// VerifyState verifies the HMAC signature and extracts the CPF.
+// Returns error if signature is invalid or state is older than 10 minutes.
+func (s *Service) VerifyState(state string) (string, error) {
+	decoded, err := base64.URLEncoding.DecodeString(state)
+	if err != nil {
+		return "", fmt.Errorf("invalid state encoding: %w", err)
+	}
+
+	parts := strings.SplitN(string(decoded), ".", 2)
+	if len(parts) != 2 {
+		return "", fmt.Errorf("invalid state format")
+	}
+
+	payload := parts[0]
+	sigHex := parts[1]
+
+	// Verify HMAC
+	mac := hmac.New(sha256.New, s.hmacKey)
+	mac.Write([]byte(payload))
+	expectedSig := hex.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(sigHex), []byte(expectedSig)) {
+		return "", fmt.Errorf("invalid state signature")
+	}
+
+	// Extract CPF and timestamp
+	payloadParts := strings.SplitN(payload, "|", 2)
+	if len(payloadParts) != 2 {
+		return "", fmt.Errorf("invalid state payload")
+	}
+
+	cpf := payloadParts[0]
+	tsStr := payloadParts[1]
+	ts, err := strconv.ParseInt(tsStr, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("invalid timestamp in state")
+	}
+
+	// Check expiration (10 minutes)
+	if time.Now().Unix()-ts > 600 {
+		return "", fmt.Errorf("state expired")
+	}
+
+	return cpf, nil
 }
 
 // GetAuthURL generates the Google OAuth authorization URL

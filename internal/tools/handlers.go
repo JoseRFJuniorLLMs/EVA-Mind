@@ -270,8 +270,8 @@ var debugOnlyTools = map[string]bool{
 	"mcp_teach_eva": true, "mcp_query_neo4j_core": true, "mcp_read_source": true, "mcp_edit_source": true,
 }
 
-// getGoogleAccessToken obtém um access token válido para Google APIs
-func (h *ToolsHandler) getGoogleAccessToken(idosoID int64) (string, error) {
+// GetGoogleAccessToken obtém um access token válido para Google APIs
+func (h *ToolsHandler) GetGoogleAccessToken(idosoID int64) (string, error) {
 	refreshToken, accessToken, expiry, err := h.db.GetGoogleTokens(idosoID)
 	if err != nil {
 		return "", fmt.Errorf("Google não conectado: %v", err)

@@ -385,6 +385,12 @@ func (s *SignalingServer) handleBrowserVoice(w http.ResponseWriter, r *http.Requ
 		})
 		defer s.toolsHandler.BrowserNotifiers.Delete(idosoID)
 		log.Info().Str("session", sessionID).Int64("idoso", idosoID).Msg("[BROWSER] Browser notifier registrado para tools async")
+
+		// Start Gmail watcher for this session
+		if s.gmailWatcher != nil {
+			s.gmailWatcher.StartWatching(idosoID)
+			defer s.gmailWatcher.StopWatching(idosoID)
+		}
 	}
 
 	// sigChan recebe sinais das goroutines para o loop principal

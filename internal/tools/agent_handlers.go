@@ -37,7 +37,7 @@ func (h *ToolsHandler) handleSendEmail(idosoID int64, args map[string]interface{
 		return map[string]interface{}{"error": "Informe o conteúdo do email"}, nil
 	}
 
-	accessToken, err := h.getGoogleAccessToken(idosoID)
+	accessToken, err := h.GetGoogleAccessToken(idosoID)
 	if err != nil {
 		return map[string]interface{}{"error": fmt.Sprintf("Não foi possível acessar o Gmail: %v", err)}, nil
 	}
@@ -91,7 +91,7 @@ func (h *ToolsHandler) handleSearchVideos(idosoID int64, args map[string]interfa
 		maxResults = 5
 	}
 
-	accessToken, err := h.getGoogleAccessToken(idosoID)
+	accessToken, err := h.GetGoogleAccessToken(idosoID)
 	if err != nil {
 		return map[string]interface{}{"error": fmt.Sprintf("Não foi possível acessar o YouTube: %v", err)}, nil
 	}
@@ -268,7 +268,7 @@ func (h *ToolsHandler) handleSendWhatsApp(idosoID int64, args map[string]interfa
 func (h *ToolsHandler) handleManageCalendar(idosoID int64, args map[string]interface{}) (map[string]interface{}, error) {
 	action, _ := args["action"].(string)
 
-	accessToken, err := h.getGoogleAccessToken(idosoID)
+	accessToken, err := h.GetGoogleAccessToken(idosoID)
 	if err != nil {
 		return map[string]interface{}{"error": fmt.Sprintf("Não foi possível acessar o Calendar: %v", err)}, nil
 	}
@@ -376,7 +376,7 @@ func (h *ToolsHandler) handleSaveToDrive(idosoID int64, args map[string]interfac
 		folder = "EVA-Mind"
 	}
 
-	accessToken, err := h.getGoogleAccessToken(idosoID)
+	accessToken, err := h.GetGoogleAccessToken(idosoID)
 	if err != nil {
 		return map[string]interface{}{"error": fmt.Sprintf("Não foi possível acessar o Drive: %v", err)}, nil
 	}
