@@ -183,6 +183,9 @@ type UnifiedContext struct {
 	EthicalStance *EthicalStance
 	GurdjieffType int    // Tipo de atenção recomendado
 	SystemPrompt  string // Prompt final integrado
+
+	// 🧠 IDENTIDADE E CAPACIDADES (CoreMemory)
+	Capabilities string // Lista de capacidades auto-semeadas (33 caps)
 }
 
 // NewUnifiedRetrieval cria serviço de recuperação unificada
@@ -349,6 +352,19 @@ func (u *UnifiedRetrieval) BuildUnifiedContext(
 		}()
 	}
 
+	// 7. CAPACIDADES (Neo4j CoreMemory) - paralelo
+	var capabilities string
+	if u.neo4j != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			caps := u.getCapabilities(ctxWithTimeout)
+			mu.Lock()
+			capabilities = caps
+			mu.Unlock()
+		}()
+	}
+
 	// Aguardar todas as queries paralelas
 	wg.Wait()
 
@@ -384,6 +400,7 @@ func (u *UnifiedRetrieval) BuildUnifiedContext(
 	unified.RecentMemories = recentMemories
 	unified.SignifierChains = signifierChains
 	unified.WisdomContext = wisdomContext
+	unified.Capabilities = capabilities
 	unified.Persona = persona // Fallback do idoso, pode ser sobrescrito pelo agendamento
 
 	// GRAFO DO DESEJO (depende do resultado Lacaniano)
@@ -513,6 +530,40 @@ func (u *UnifiedRetrieval) getMedicalContextAndName(ctx context.Context, idosoID
 	}
 
 	return medicalContext, name, cpf, idioma, persona, colecoes
+}
+
+// getCapabilities recupera as 33 capacidades auto-semeadas do Neo4j (CoreMemory)
+func (u *UnifiedRetrieval) getCapabilities(ctx context.Context) string {
+	if u.neo4j == nil {
+		return ""
+	}
+
+	query := `
+		MATCH (m:CoreMemory)
+		WHERE m.memory_type = 'capability'
+		RETURN m.content AS content
+		ORDER BY m.id
+	`
+	records, err := u.neo4j.ExecuteRead(ctx, query, nil)
+	if err != nil {
+		log.Printf("⚠️ [CAPS] Failed to load capabilities: %v", err)
+		return ""
+	}
+
+	if len(records) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString("### O QUE EU SEI FAZER (33 CAPACIDADES)\n")
+	for _, record := range records {
+		if content, ok := record.Get("content"); ok {
+			b.WriteString(fmt.Sprintf("- %s\n", content))
+		}
+	}
+	b.WriteString("\nQuando alguem perguntar o que eu sei fazer, liste essas capacidades naturalmente.\n")
+	b.WriteString("NUNCA diga que é apenas um assistente de voz ou escolar. Voce TEM todas essas capacidades.\n")
+	return b.String()
 }
 
 // getRecentMemories recupera memórias episódicas recentes
@@ -981,6 +1032,12 @@ func (u *UnifiedRetrieval) buildIntegratedPrompt(unified *UnifiedContext) string
 		typeDirective = "ATENÇÃO TIPO 9 (Pacificador): Foco em harmonia e escuta."
 	}
 	builder.WriteString(fmt.Sprintf("🎯 %s\n\n", typeDirective))
+
+	// 🧠 CAPACIDADES (injetadas para TODOS os modos - voz, texto, debug)
+	if unified.Capabilities != "" {
+		builder.WriteString("═══════════════════════════════════════════════════════════\n")
+		builder.WriteString(unified.Capabilities)
+	}
 
 	// Rodapé
 	builder.WriteString("═══════════════════════════════════════════════════════════\n")

@@ -308,15 +308,9 @@ func (h *ToolsHandler) getGoogleAccessToken(idosoID int64) (string, error) {
 func (h *ToolsHandler) ExecuteTool(name string, args map[string]interface{}, idosoID int64) (map[string]interface{}, error) {
 	log.Printf("🛠️ [TOOLS] Executando tool: %s para Idoso %d", name, idosoID)
 
-	// 🔓 Production tools sao sempre permitidas (acesso a informacao em tempo real)
-	// 🔒 Debug-only tools so funcionam em ENVIRONMENT=development
-	if debugOnlyTools[name] && !productionTools[name] && !h.debugMode {
-		log.Printf("🔒 [TOOLS] Tool '%s' bloqueada — disponível apenas em modo debug", name)
-		return map[string]interface{}{
-			"status":  "bloqueado",
-			"message": fmt.Sprintf("Ferramenta '%s' disponível apenas em modo debug/development", name),
-		}, nil
-	}
+	// 🔓 TODAS as tools liberadas para TODOS os modos (producao + debug)
+	// Gate removido: todas as 150+ tools ativas independente de ENVIRONMENT
+	log.Printf("🔓 [TOOLS] Tool '%s' liberada (all-access mode)", name)
 
 	// 🚦 Rate limiting
 	if err := checkRateLimit(name, idosoID); err != nil {
