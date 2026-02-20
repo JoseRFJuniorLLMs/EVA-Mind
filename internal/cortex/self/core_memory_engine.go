@@ -566,6 +566,7 @@ func (e *CoreMemoryEngine) seedCapabilities(ctx context.Context) {
 		{"cap_research_engine", "Eu tenho um motor de pesquisa clinica longitudinal com anonimizacao LGPD, construcao de coortes, analise estatistica e exportacao de datasets via REST API."},
 		{"cap_scholar_agent", "Eu tenho um agente Scholar especializado em pesquisa academica e aprendizado autonomo, que estuda topicos em background a cada 6 horas."},
 		{"cap_selfawareness_agent", "Eu tenho um agente de Autoconsciencia que faz introspeccao: analisa meu codigo-fonte, consulta meus bancos de dados, e gera estatisticas sobre minha propria memoria e capacidades."},
+		{"cap_web_realtime", "Eu tenho acesso a informacoes em tempo real via Google Search grounding. Posso pesquisar noticias, eventos atuais, precos, clima e qualquer informacao atualizada da internet durante uma conversa."},
 	}
 
 	for _, cap := range capabilities {
