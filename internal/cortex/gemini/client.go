@@ -119,8 +119,6 @@ func (c *Client) SendSetup(instructions string, voiceSettings map[string]interfa
 			"model": fmt.Sprintf("models/%s", c.cfg.ModelID),
 			"generation_config": map[string]interface{}{
 				"response_modalities": []string{"AUDIO"},
-				"input_audio_transcription":  map[string]interface{}{},
-				"output_audio_transcription": map[string]interface{}{},
 				"speech_config": map[string]interface{}{
 					"voice_config": map[string]interface{}{
 						"prebuilt_voice_config": map[string]interface{}{
