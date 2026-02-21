@@ -6,7 +6,7 @@ on:
 
 env:
   GO_VERSION: "1.24"
-  VM_IP: "34.35.36.178"
+  VM_IP: ${{ secrets.VM_IP }}
   VM_USER: "web2a"
 
 jobs:
@@ -53,9 +53,13 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ env.VM_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+          echo "Host *
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking accept-new" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
 
       - name: Deploy via SSH (git pull + build + restart)
         run: |
