@@ -179,7 +179,12 @@ func (c *Client) SendSetup(instructions string, voiceSettings map[string]interfa
 
 	log.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-	return c.conn.WriteJSON(setup)
+	if err := c.conn.WriteJSON(setup); err != nil {
+		log.Printf("❌ [GEMINI] Erro ao enviar setup: %v", err)
+		return fmt.Errorf("gemini setup send: %w", err)
+	}
+	log.Printf("✅ [GEMINI] Setup enviado com sucesso")
+	return nil
 }
 
 // StartSession é alias depreciado
@@ -262,21 +267,26 @@ func (c *Client) SendMessage(msg interface{}) error {
 	return c.conn.WriteJSON(msg)
 }
 
-// ReadResponse lê resposta
+// ReadResponse lê resposta do Gemini WebSocket.
+// Retorna erro com contexto para facilitar diagnostico.
 func (c *Client) ReadResponse() (map[string]interface{}, error) {
 	_, message, err := c.conn.ReadMessage()
 	if err != nil {
-		return nil, err
+		log.Printf("❌ [GEMINI] ReadResponse error: %v", err)
+		return nil, fmt.Errorf("gemini read: %w", err)
 	}
-
-	// PERFORMANCE: Logs de debug removidos (causavam overhead de I/O)
-	// Para debug, descomentar linha abaixo:
-	// log.Printf("🔍 [GEMINI] Response: %d bytes", len(message))
 
 	var response map[string]interface{}
 	if err := json.Unmarshal(message, &response); err != nil {
-		return nil, fmt.Errorf("unmarshal error: %v", err)
+		log.Printf("❌ [GEMINI] JSON unmarshal error (%d bytes): %v", len(message), err)
+		return nil, fmt.Errorf("gemini unmarshal (%d bytes): %w", len(message), err)
 	}
+
+	// Detectar erros retornados pelo Gemini na resposta JSON
+	if errField, ok := response["error"]; ok {
+		log.Printf("❌ [GEMINI] API error in response: %v", errField)
+	}
+
 	return response, nil
 }
 

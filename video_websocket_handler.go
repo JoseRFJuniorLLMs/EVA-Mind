@@ -206,7 +206,10 @@ func (vsm *VideoSessionManager) RegisterClient(sessionID string, conn *websocket
 					"sdp":  session.SDPOffer,
 				},
 			}
-			conn.WriteJSON(offerMsg)
+			if err := conn.WriteJSON(offerMsg); err != nil {
+				log.Printf("❌ Erro ao enviar SDP Offer para attendant: %v", err)
+				return fmt.Errorf("falha ao enviar SDP Offer: %w", err)
+			}
 		}
 	} else {
 		session.MobileConn = conn
@@ -404,13 +407,22 @@ func HandleVideoWebSocket(vsm *VideoSessionManager) http.HandlerFunc {
 					vsm.mu.Unlock()
 				}
 
-				vsm.RegisterClient(sessionID, conn, clientType, "", "", "")
+				if err := vsm.RegisterClient(sessionID, conn, clientType, "", "", ""); err != nil {
+					conn.WriteJSON(map[string]interface{}{
+						"type":    "error",
+						"message": "falha ao registrar: " + err.Error(),
+					})
+					log.Printf("❌ Registration error: %v", err)
+					continue
+				}
 
 				// Send confirmation
-				conn.WriteJSON(map[string]interface{}{
+				if err := conn.WriteJSON(map[string]interface{}{
 					"type":    "registered",
 					"session": sessionID,
-				})
+				}); err != nil {
+					log.Printf("❌ Erro ao enviar confirmacao de registro: %v", err)
+				}
 
 			case "webrtc_signal":
 				if sessionID == "" {

@@ -275,6 +275,26 @@ func (s *SignalingServer) handleEvaChat(w http.ResponseWriter, r *http.Request) 
 
 	sessionErr := <-errChan
 
+	// --- Notificar browser do erro antes de fechar ---
+	if sessionErr != nil {
+		errMsg := sessionErr.Error()
+		var browserErr string
+		switch {
+		case strings.Contains(errMsg, "websocket: close"):
+			browserErr = "error: conexao com IA perdida (" + errMsg + ")"
+		case strings.Contains(errMsg, "context canceled"):
+			browserErr = "error: sessao cancelada"
+		case strings.Contains(errMsg, "i/o timeout"):
+			browserErr = "error: timeout na comunicacao"
+		default:
+			browserErr = "error: " + errMsg
+		}
+		writeMu.Lock()
+		conn.WriteJSON(evaMessage{Type: "status", Text: browserErr})
+		writeMu.Unlock()
+		log.Error().Str("session", sessionID).Str("error_sent", browserErr).Msg("[EVA] Erro enviado ao cliente")
+	}
+
 	// Finalizar sessao no Neo4j legado
 	if s.evaMemory != nil {
 		s.evaMemory.EndSession(ctx, sessionID)

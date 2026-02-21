@@ -70,6 +70,9 @@ type browserSignal struct {
 
 // isGeminiTimeout detecta erros de timeout/cancelamento da API Gemini Live.
 // Esses erros sao esperados apos ~10 minutos de sessao e sao recuperaveis.
+// Close codes:
+//   - 1005 (NoStatusReceived): servidor fechou TCP sem close frame — transiente
+//   - 1011 (InternalError): erro interno do Gemini — transiente
 func isGeminiTimeout(err error) bool {
 	if err == nil {
 		return false
@@ -77,7 +80,9 @@ func isGeminiTimeout(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "CANCELLED") ||
 		strings.Contains(msg, "Thread was cancelled") ||
+		strings.Contains(msg, "websocket: close 1005") ||
 		strings.Contains(msg, "websocket: close 1011") ||
+		strings.Contains(msg, "websocket: close 1006") ||
 		strings.Contains(msg, "context deadline exceeded")
 }
 
@@ -737,6 +742,27 @@ func (s *SignalingServer) handleBrowserVoice(w http.ResponseWriter, r *http.Requ
 			Int("attempt", reconnectCount).
 			Int64("gen", newGen).
 			Msg("[BROWSER] Reconexao ao Gemini bem-sucedida")
+	}
+
+	// --- Notificar browser do erro antes de fechar ---
+	if finalErr != nil {
+		errMsg := finalErr.Error()
+		// Classificar o erro para o browser
+		var browserErr string
+		switch {
+		case strings.Contains(errMsg, "websocket: close"):
+			browserErr = "error: conexao com IA perdida (" + errMsg + ")"
+		case strings.Contains(errMsg, "context canceled"):
+			browserErr = "error: sessao cancelada"
+		case strings.Contains(errMsg, "i/o timeout"):
+			browserErr = "error: timeout na comunicacao"
+		default:
+			browserErr = "error: " + errMsg
+		}
+		writeMu.Lock()
+		conn.WriteJSON(browserMessage{Type: "status", Text: browserErr})
+		writeMu.Unlock()
+		log.Error().Str("session", sessionID).Str("error_sent", browserErr).Msg("[BROWSER] Erro enviado ao cliente")
 	}
 
 	// --- Finalizar sessao no Neo4j ---
