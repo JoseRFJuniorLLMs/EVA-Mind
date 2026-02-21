@@ -637,7 +637,9 @@ func (s *SignalingServer) handleBrowserVoice(w http.ResponseWriter, r *http.Requ
 			case "audio":
 				pcmData, err := base64.StdEncoding.DecodeString(msg.Data)
 				if err == nil {
-					client.SendAudio(pcmData)
+					if err := client.SendAudio(pcmData); err != nil {
+						log.Error().Err(err).Str("session", sessionID).Msg("[Browser] Erro ao enviar audio para Gemini")
+					}
 					if s.speakerSvc != nil {
 						go s.speakerSvc.ProcessAudioChunk(sessionID, clientCPF, pcmData)
 					}
@@ -645,14 +647,18 @@ func (s *SignalingServer) handleBrowserVoice(w http.ResponseWriter, r *http.Requ
 			case "video":
 				jpegData, err := base64.StdEncoding.DecodeString(msg.Data)
 				if err == nil {
-					client.SendImage(jpegData)
+					if err := client.SendImage(jpegData); err != nil {
+						log.Error().Err(err).Str("session", sessionID).Msg("[Browser] Erro ao enviar imagem para Gemini")
+					}
 				}
 			case "text":
 				if msg.Text != "" {
 					if s.evaMemory != nil {
 						go s.evaMemory.StoreTurn(ctx, sessionID, "user", msg.Text)
 					}
-					client.SendText(msg.Text)
+					if err := client.SendText(msg.Text); err != nil {
+						log.Error().Err(err).Str("session", sessionID).Msg("[Browser] Erro ao enviar texto para Gemini")
+					}
 				}
 			case "config":
 				log.Info().Str("session", sessionID).Msg("Browser sent config update")

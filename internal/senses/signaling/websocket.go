@@ -743,7 +743,11 @@ Use isso para guiar sua resposta ao próximo áudio.
 	}
 
 	if err := session.GeminiClient.SendAudio(pcmData); err != nil {
-		log.Printf("❌ Erro ao enviar áudio para Gemini")
+		log.Printf("❌ [SendAudio] Erro ao enviar audio para Gemini (session=%s): %v", session.ID, err)
+		s.sendMessage(session.WSConn, ControlMessage{
+			Type:  "error",
+			Error: "Falha ao enviar audio para IA: " + err.Error(),
+		})
 	}
 }
 
@@ -752,6 +756,9 @@ func (s *SignalingServer) audioClientToGemini(session *WebSocketSession) {
 }
 
 func (s *SignalingServer) audioGeminiToClient(session *WebSocketSession) {
+	consecutiveErrors := 0
+	const maxConsecutiveErrors = 10
+
 	for {
 		select {
 		case <-session.ctx.Done():
@@ -759,10 +766,23 @@ func (s *SignalingServer) audioGeminiToClient(session *WebSocketSession) {
 		default:
 			response, err := session.GeminiClient.ReadResponse()
 			if err != nil {
+				consecutiveErrors++
+				log.Printf("⚠️ [audioGeminiToClient] Erro Gemini (%d/%d): %v", consecutiveErrors, maxConsecutiveErrors, err)
+
+				if consecutiveErrors >= maxConsecutiveErrors {
+					log.Printf("❌ [audioGeminiToClient] %d erros consecutivos — encerrando sessao %s", maxConsecutiveErrors, session.ID)
+					s.sendMessage(session.WSConn, ControlMessage{
+						Type:  "error",
+						Error: fmt.Sprintf("Conexao com IA perdida apos %d tentativas", maxConsecutiveErrors),
+					})
+					return
+				}
+
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
 
+			consecutiveErrors = 0
 			s.handleGeminiResponse(session, response)
 		}
 	}
@@ -1683,8 +1703,14 @@ func (s *SignalingServer) getIdosoByCPF(cpf string) (*Idoso, error) {
 }
 
 func (s *SignalingServer) sendMessage(conn *websocket.Conn, msg ControlMessage) {
-	data, _ := json.Marshal(msg)
-	conn.WriteMessage(websocket.TextMessage, data)
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("❌ [sendMessage] Erro ao serializar mensagem type=%s: %v", msg.Type, err)
+		return
+	}
+	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		log.Printf("❌ [sendMessage] Erro ao enviar mensagem type=%s: %v", msg.Type, err)
+	}
 }
 
 func (s *SignalingServer) sendError(conn *websocket.Conn, errMsg string) {

@@ -38,8 +38,14 @@ func (s *Service) SendMessage(to, message string) error {
 		},
 	}
 
-	body, _ := json.Marshal(payload)
-	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(body))
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal payload: %w", err)
+	}
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
 	req.Header.Set("Authorization", "Bearer "+s.accessToken)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -85,8 +91,14 @@ func (s *Service) SendTemplateMessage(to, templateName string, params []string) 
 		},
 	}
 
-	body, _ := json.Marshal(payload)
-	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(body))
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal template payload: %w", err)
+	}
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("create template request: %w", err)
+	}
 	req.Header.Set("Authorization", "Bearer "+s.accessToken)
 	req.Header.Set("Content-Type", "application/json")
 

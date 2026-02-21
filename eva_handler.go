@@ -267,7 +267,12 @@ func (s *SignalingServer) handleEvaChat(w http.ResponseWriter, r *http.Request) 
 					transcriptMu.Lock()
 					transcriptAccum.WriteString("Usuario: " + msg.Text + "\n")
 					transcriptMu.Unlock()
-					geminiClient.SendText(msg.Text)
+					if err := geminiClient.SendText(msg.Text); err != nil {
+						log.Error().Err(err).Str("session", sessionID).Msg("[EVA] Erro ao enviar texto para Gemini")
+						writeMu.Lock()
+						conn.WriteJSON(evaMessage{Type: "status", Text: "error: falha ao enviar mensagem"})
+						writeMu.Unlock()
+					}
 				}
 			}
 		}

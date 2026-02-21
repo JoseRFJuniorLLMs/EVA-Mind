@@ -93,28 +93,46 @@ func (n *Notifier) NotifyPsychologist(ctx context.Context, event *CrisisEvent) e
 		RequiresAction:   event.ResponseActions["require_acknowledgment"],
 	}
 
+	var errors []string
+
 	// 1. Send webhook (real-time)
 	if n.webhookURL != "" {
-		err := n.sendWebhook(ctx, payload)
-		if err != nil {
+		if err := n.sendWebhook(ctx, payload); err != nil {
 			log.Error().Err(err).Msg("Failed to send webhook")
+			errors = append(errors, "webhook: "+err.Error())
 		}
 	}
 
 	// 2. Send email (backup)
-	if n.emailAPI != "" {
-		err := n.sendEmail(ctx, payload)
-		if err != nil {
+	if n.emailAPI != "" || n.emailSvc != nil {
+		if err := n.sendEmail(ctx, payload); err != nil {
 			log.Error().Err(err).Msg("Failed to send email")
+			errors = append(errors, "email: "+err.Error())
 		}
 	}
 
 	// 3. Send SMS (critical only)
-	if event.Severity == "CRITICAL" && n.smsAPI != "" {
-		err := n.sendSMS(ctx, payload)
-		if err != nil {
+	if event.Severity == "CRITICAL" && (n.smsAPI != "" || n.smsSvc != nil) {
+		if err := n.sendSMS(ctx, payload); err != nil {
 			log.Error().Err(err).Msg("Failed to send SMS")
+			errors = append(errors, "sms: "+err.Error())
 		}
+	}
+
+	// Se NENHUM canal conseguiu enviar, retorna erro
+	channelsAttempted := 0
+	if n.webhookURL != "" {
+		channelsAttempted++
+	}
+	if n.emailAPI != "" || n.emailSvc != nil {
+		channelsAttempted++
+	}
+	if event.Severity == "CRITICAL" && (n.smsAPI != "" || n.smsSvc != nil) {
+		channelsAttempted++
+	}
+
+	if channelsAttempted > 0 && len(errors) == channelsAttempted {
+		return fmt.Errorf("CRITICO: todos os %d canais de notificacao falharam para evento %d: %v", channelsAttempted, event.ID, errors)
 	}
 
 	return nil
@@ -179,7 +197,10 @@ func (n *Notifier) sendEmail(ctx context.Context, payload NotificationPayload) e
 			"subject": subject,
 			"payload": payload,
 		}
-		jsonData, _ := json.Marshal(emailPayload)
+		jsonData, err := json.Marshal(emailPayload)
+		if err != nil {
+			return fmt.Errorf("marshal email payload: %w", err)
+		}
 		req, err := http.NewRequestWithContext(ctx, "POST", n.emailAPI, bytes.NewBuffer(jsonData))
 		if err != nil {
 			return err
@@ -222,7 +243,10 @@ func (n *Notifier) sendSMS(ctx context.Context, payload NotificationPayload) err
 			"message": reason,
 			"payload": payload,
 		}
-		jsonData, _ := json.Marshal(smsPayload)
+		jsonData, err := json.Marshal(smsPayload)
+		if err != nil {
+			return fmt.Errorf("marshal sms payload: %w", err)
+		}
 		req, err := http.NewRequestWithContext(ctx, "POST", n.smsAPI, bytes.NewBuffer(jsonData))
 		if err != nil {
 			return err

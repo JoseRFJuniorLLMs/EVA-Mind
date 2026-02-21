@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"fmt"
 	"eva-mind/internal/brainstem/config"
 	"eva-mind/internal/brainstem/database"
 	"eva-mind/internal/cortex/gemini"
@@ -235,7 +236,11 @@ func (h *Handler) HandleMediaStream(w http.ResponseWriter, r *http.Request) {
 						if sid, ok := start["streamSid"].(string); ok {
 							streamSidChan <- sid
 							// Inicia a conversa
-							geminiSession.Client.SendText("O usuário atendeu. Diga 'Olá'.")
+							if err := geminiSession.Client.SendText("O usuário atendeu. Diga 'Olá'."); err != nil {
+								h.logger.Error().Err(err).Msg("Erro ao enviar texto inicial para Gemini")
+								errChan <- fmt.Errorf("gemini SendText: %w", err)
+								return
+							}
 						}
 					}
 				case "media":
@@ -255,7 +260,9 @@ func (h *Handler) HandleMediaStream(w http.ResponseWriter, r *http.Request) {
 
 							// Flush se buffer cheio
 							if len(audioSess.AudioBuffer) >= MIN_BUFFER_SIZE {
-								geminiSession.Client.SendAudio(audioSess.AudioBuffer)
+								if err := geminiSession.Client.SendAudio(audioSess.AudioBuffer); err != nil {
+									h.logger.Error().Err(err).Msg("Erro ao enviar audio para Gemini")
+								}
 								// Reset buffer mantendo capacidade
 								audioSess.AudioBuffer = audioSess.AudioBuffer[:0]
 							}
